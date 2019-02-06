@@ -1,11 +1,7 @@
 package com.mygdx.game.entities;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.Animation;
-import com.badlogic.gdx.graphics.g2d.Animation.PlayMode;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.math.Vector2;
@@ -17,31 +13,29 @@ import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
 import com.mygdx.game.Constants;
 
-public class Player {
+public class Monster {
 	private Body body;
 	private Texture img;
 	private Sprite sprite;
 	private EntityStatus status;
-	private Vector2 previousPosition;
 
 	private Batch batch;
 	private World world;
-	private float stateTime = 0;
-	private Animation<Texture> animation;
+//	private float stateTime = 0;
+//	private Animation<Texture> animation;
 
-	public Player(World world, Batch batch) {
+	public Monster(World world, Batch batch) {
 		super();
 		this.world = world;
 		this.batch = batch;
 
-		img = new Texture("parado.png");
+		img = new Texture("carinha2.jpg");
 		sprite = new Sprite(img);
 
-		animation = new Animation<>(0.1f,img,  new Texture("walk1.png"), img, new Texture("walk2.png"));
-		animation.setPlayMode(PlayMode.LOOP);
+//		animation = new Animation<>(0.1f,img,  new Texture("walk1.png"), img, new Texture("walk2.png"));
+//		animation.setPlayMode(PlayMode.LOOP);
 
 		body = createBodyPlayer(1600, 6670, Constants.PPM * 1.5f, Constants.PPM * 2.5f);
-		previousPosition = new Vector2();
 	}
 
 	public Body createBodyPlayer(int x, int y, float width, float height) {
@@ -78,44 +72,15 @@ public class Player {
 		fix.setUserData(this);
 	}
 
-	public void update(float delta) {
-
-
-		if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-			sprite.setFlip(false, false);
-			body.applyForceToCenter(1500, 0, true);
-			if (body.getLinearVelocity().x > 15) {
-				body.setLinearVelocity(15, body.getLinearVelocity().y);
-			}
-		}
-		if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-			sprite.setFlip(true, false);
-			body.applyForceToCenter(-1500, 0, true);
-			if (body.getLinearVelocity().x < -15) {
-				body.setLinearVelocity(-15, body.getLinearVelocity().y);
-			}
-		}
-		if (Gdx.input.isKeyJustPressed(Input.Keys.W)) {
-			// body.applyForceToCenter(0, 3000, false);
-			body.setLinearVelocity(body.getLinearVelocity().x, 25);
+	public void update(float delta, Vector2 positionSeguir) {
+		if (positionSeguir.x > getPosition().x) {
+			body.setLinearVelocity(10, body.getLinearVelocity().y);
+		} else {
+			body.setLinearVelocity(-10, body.getLinearVelocity().y);
 		}
 
-		// if(keycode == Input.Keys.SPACE) {
-		// body.setLinearVelocity(0f, 0f);
-		// body.setAngularVelocity(0f);
-		// torque = 0f;
-		// sprite.setPosition(0f,0f);
-		// body.setTransform(0f,0f,0f);
-		// }
-		stateTime += delta;
+//		stateTime += delta;
 		status = updateStatus();
-		updatePreviusPosition();
-	}
-
-	private void updatePreviusPosition() {
-		previousPosition.x = getPosition().x;
-		previousPosition.y = getPosition().y;
-
 	}
 
 	private EntityStatus updateStatus() {
@@ -143,10 +108,6 @@ public class Player {
 	}
 
 	private Texture getStatusTexture() {
-		if (status == EntityStatus.WALK) {
-			return animation.getKeyFrame(stateTime);
-		}
-
 		return img;
 	}
 
