@@ -2,24 +2,20 @@ package com.mygdx.game;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.Input.Buttons;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
-import com.badlogic.gdx.physics.box2d.Contact;
-import com.badlogic.gdx.physics.box2d.ContactFilter;
-import com.badlogic.gdx.physics.box2d.ContactImpulse;
-import com.badlogic.gdx.physics.box2d.ContactListener;
-import com.badlogic.gdx.physics.box2d.Fixture;
-import com.badlogic.gdx.physics.box2d.Manifold;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.mygdx.game.entities.Monster;
 import com.mygdx.game.entities.Player;
 import com.mygdx.game.scene.Hud;
-import com.mygdx.game.world.MapaRender;
+import com.mygdx.game.world.GameMap;
+import com.mygdx.game.world.GameTile;
 import com.mygdx.game.world.generate.GameMapGenerator;
 
 public class GameScreen implements Screen {
@@ -32,7 +28,7 @@ public class GameScreen implements Screen {
 	private GameInit game;
 	private Player player;
 	private Monster monster;
-	private MapaRender mapaRender;
+	private GameMap mapaRender;
 	private int[][] mapa;
 
 	private boolean debug = false;
@@ -46,44 +42,14 @@ public class GameScreen implements Screen {
 		this.player = new Player(world, game.batch);
 		this.b2dr = new Box2DDebugRenderer();
         this.mapa = new GameMapGenerator(6).generate();
-		this.mapaRender = new MapaRender(mapa, game.batch, world, camera);
+		this.mapaRender = new GameMap(mapa, game.batch, world, camera);
 		this.monster = new Monster(world, game.batch);
-
-		world.setContactFilter(new ContactFilter() {
-
-			@Override
-			public boolean shouldCollide(Fixture fixtureA, Fixture fixtureB) {
-				if (fixtureA.getUserData() instanceof Player && fixtureB.getUserData() instanceof Monster) {
-					return false;
-				}
-				return true;
-			}
-		});
-//		world.setContactListener(new ContactListener() {
-//			@Override
-//			public void preSolve(Contact contact, Manifold oldManifold) {
-//				System.out.println("PRE");
 //
-//			}
-//
-//			@Override
-//			public void postSolve(Contact contact, ContactImpulse impulse) {
-//				System.out.println("POST");
-//
-//			}
-//
-//			@Override
-//			public void endContact(Contact contact) {
-//				System.out.println("END");
-//
-//			}
-//
-//			@Override
-//			public void beginContact(Contact contact) {
-//				System.out.println("BEGIN");
-//
-//			}
+//		world.setContactFilter((fixtureA, fixtureB) -> {
+//			return !(fixtureA.getUserData() instanceof Player && fixtureB.getUserData() instanceof Monster);
 //		});
+
+		world.setContactListener(new GameContactHandler());
 	}
 
 
@@ -117,7 +83,7 @@ public class GameScreen implements Screen {
 	public void update(float delta) {
         world.step(1 / 60f, 6, 2);
         cameraUpdate(delta);
-        player.update(delta);
+        player.update(delta, mapaRender);
         monster.update(delta, player.getPosition());
         mapaRender.update(delta);
 
@@ -125,6 +91,16 @@ public class GameScreen implements Screen {
         if(Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
         	debug = !debug;
         }
+
+
+        if (Gdx.input.isButtonPressed(Buttons.LEFT)) {
+        	float somar = Constants.PPM;
+        	float x = (Gdx.input.getX()+somar)/Constants.PPM;
+        	float y = (camera.viewportHeight - Gdx.input.getY() + somar)/Constants.PPM;
+
+        	mapaRender.getAddTileOnPositionOfCamera(x, y, GameTile.DIRT);
+        }
+
 	}
 
 	@Override
@@ -132,6 +108,7 @@ public class GameScreen implements Screen {
 		game.batch.begin();
 
 		mapaRender.render(player.getPosition(), monster.getPosition());
+//		mapaRender.render(player.getPosition());
 		player.render(camera);
 		monster.render(camera);
 
@@ -158,20 +135,14 @@ public class GameScreen implements Screen {
 
 	@Override
 	public void pause() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void resume() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void hide() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override

@@ -1,75 +1,129 @@
 package com.mygdx.game.world;
 
 import java.util.ArrayList;
+import java.util.List;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.mygdx.game.entities.Entity;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.ObjectMap.Values;
+import com.mygdx.game.Constants;
 
 public class GameMap {
 
-	String id;
-	String name;
-	int[][][] map;
-	private TextureRegion[][] tiles;
+	private int[][] mapa;
+	private Texture cima;
+	private Texture baixo;
+	private SpriteBatch batch;
+	private OrthographicCamera camera;
+	private GameMapBodyCreate bodyCreate;
 
-	protected ArrayList<Entity> entities;
+	/**
+	 * Objetos para reaproveitar body
+	 */
+	private ObjectMap<String, Body> collisions1 = new ObjectMap<>();
+	private ObjectMap<String, Body> collisions2 = new ObjectMap<>();
+	private List<Body> instancias = new ArrayList<>();
+	private int collision = 1;
 
-	public GameMap(GameMapData data) {
-		entities = new ArrayList<Entity>();
-		// CustomGameMapData data = CustomGameMapLoader.loadMap("basic", "My Grass
-		// Lands!");
-//		GameMapData data = new GameMapData();
-		this.id = data.id;
-		this.name = data.name;
-		this.map = data.map;
+	public GameMap(int[][] mapa, SpriteBatch batch, World world, OrthographicCamera camera) {
+		this.mapa = mapa;
+		this.batch = batch;
+		this.camera = camera;
 
-		tiles = TextureRegion.split(new Texture("tiles.png"), TileType.TILE_SIZE, TileType.TILE_SIZE);
-	}
-
-	public void render(OrthographicCamera camera, SpriteBatch batch) {
-
-		batch.setProjectionMatrix(camera.combined);
-		batch.begin();
-
-		for (int layer = 0; layer < getLayers(); layer++) {
-			for (int row = 0; row < getHeight(); row++) {
-				for (int col = 0; col < getWidth(); col++) {
-					TileType type = this.getTileTypeByCoordinate(layer, col, row);
-					if (type != null)
-						batch.draw(tiles[0][type.getId() - 1], col * TileType.TILE_SIZE, row * TileType.TILE_SIZE);
-				}
-			}
-		}
-
-		for (Entity entity : entities) {
-			entity.render(batch);
-		}
-		batch.end();
+		this.cima = new Texture(Gdx.files.internal("Tiles/2.png"));
+		this.baixo = new Texture(Gdx.files.internal("Tiles/5.png"));
+		bodyCreate = new GameMapBodyCreate(world);
 	}
 
 	public void update(float delta) {
-		for (Entity entity : entities) {
-			entity.update(delta, -9.8f);
-		}
-
-		// if (Gdx.input.isKeyJustPressed(Keys.S)) {
-		// EntityLoader.saveEntities("basic", entities);
-		// }
+		collision = (collision + 1) % 2;
 	}
 
-	public boolean doesRectCollideWithMap(float x, float y, int width, int height) {
-		if (x < 0 || y < 0 || x + width > getPixelWidth() || y + height > getPixelHeight())
-			return true;
+	public void render(Vector2... entitesPosition) {
+		int xMatriz = getPosicaoInicialMatriz(camera.position.x - camera.viewportWidth / 2) - 1;
+		int yMatriz = getPosicaoInicialMatriz(camera.position.y - camera.viewportHeight / 2) - 1;
 
-		for (int row = (int) (y / TileType.TILE_SIZE); row < Math.ceil((y + height) / TileType.TILE_SIZE); row++) {
-			for (int col = (int) (x / TileType.TILE_SIZE); col < Math.ceil((x + width) / TileType.TILE_SIZE); col++) {
-				for (int layer = 0; layer < getLayers(); layer++) {
-					TileType type = getTileTypeByCoordinate(layer, col, row);
-					if (type != null && type.isCollidable())
-						return true;
+		if (yMatriz < 0) {
+			yMatriz = 0;
+		}
+		if (xMatriz < 0) {
+			xMatriz = 0;
+		}
+
+		int xTamanho = dividirSeNaoForZero(camera.viewportWidth, Constants.PPM) + 5;
+		int yTamanho = dividirSeNaoForZero(camera.viewportHeight, Constants.PPM) + 5;
+
+		for (int x = 0; x < xTamanho; xMatriz++, x++) {
+			int yMatrizTemp = yMatriz;
+			for (int y = 0; y < yTamanho; yMatrizTemp++, y++) {
+				GameTile gameTile = GameTile.getTileTypeById(mapa[xMatriz][yMatrizTemp]);
+
+				if (gameTile.hasTextureOrIsCollidable()) {
+					Body body = addBody(xMatriz, yMatrizTemp, gameTile, entitesPosition);
+
+					if (gameTile.hasTexture()) {
+						float yPos = getDrawPosition(body.getPosition().y, camera.viewportHeight, camera.position.y);
+						float xPos = getDrawPosition(body.getPosition().x, camera.viewportWidth, camera.position.x);
+
+						batch.draw(gameTile.getTexture(), xPos, yPos, Constants.PPM, Constants.PPM);
+					}
+				}
+			}
+		}
+	}
+
+	private float getDrawPosition(float bodyPosition, float viewportSize, float cameraPostion) {
+		return ((((bodyPosition * Constants.PPM) - cameraPostion) * 2) + viewportSize) / 2
+				- Constants.PPM/2f;
+	}
+
+	private Body addBody(int x, int y, GameTile gameTile, Vector2... entitiesPosition) {
+		String key = x + "/" + y;
+		ObjectMap<String, Body> mapAdd = getMapAdd();
+		ObjectMap<String, Body> mapRemove = getMapRemove();
+
+		Body body = mapRemove.remove(key);
+
+		if (body == null) {
+			if (instancias.isEmpty()) {
+				body = bodyCreate.create(x, y);
+			} else {
+				body = instancias.remove(0);
+				body.setTransform(x, y, body.getAngle());
+			}
+
+			mapAdd.put(key, body);
+		}
+
+		if (!mapRemove.isEmpty()) {
+			Values<Body> values = mapRemove.values();
+			while (values.hasNext()) {
+				instancias.add(values.next());
+			}
+			mapRemove.clear();
+		}
+
+		body.setActive(gameTile.isCollidable() && entityIsClose(body, entitiesPosition));
+
+		return body;
+	}
+
+	public int blockOnPosition(Vector2 position) {
+		return mapa[(int)position.x][(int)position.y];
+	}
+
+	private boolean entityIsClose(Body body, Vector2... entitiesPosition) {
+		if(entitiesPosition != null) {
+			for (Vector2 position : entitiesPosition) {
+				if ((body.getPosition().x < position.x + 3 && body.getPosition().x > position.x - 3)
+						&& (body.getPosition().y < position.y + 5 && body.getPosition().y > position.y - 3)) {
+					return true;
 				}
 			}
 		}
@@ -77,41 +131,30 @@ public class GameMap {
 		return false;
 	}
 
+	private ObjectMap<String, Body> getMapAdd() {
+		return collision == 1 ? collisions1 : collisions2;
+	}
 
+	private ObjectMap<String, Body> getMapRemove() {
+		return collision == 1 ? collisions2 : collisions1;
+	}
+
+	private int dividirSeNaoForZero(float div, float zoom) {
+		return Math.round(zoom == 0 ? div : div / zoom);
+	}
+
+	public int getPosicaoInicialMatriz(float camera) {
+		return Math.round(camera / Constants.PPM);
+	}
+
+	public void getAddTileOnPositionOfCamera(float x, float y, GameTile tile) {
+		int xCamera = getPosicaoInicialMatriz(camera.position.x - camera.viewportWidth / 2) - 1;
+		int yCamera = getPosicaoInicialMatriz(camera.position.y - camera.viewportHeight / 2) - 1;
+		mapa[Math.round((xCamera+x))][Math.round(yCamera+y)] = tile.getId();
+	}
 
 	public void dispose() {
+		cima.dispose();
+		baixo.dispose();
 	}
-
-	public TileType getTileTypeByLocation(int layer, float x, float y) {
-		return this.getTileTypeByCoordinate(layer, (int) (x / TileType.TILE_SIZE),
-				getHeight() - (int) (y / TileType.TILE_SIZE) - 1);
-	}
-
-	public TileType getTileTypeByCoordinate(int layer, int col, int row) {
-		if (col < 0 || col >= getWidth() || row < 0 || row >= getHeight())
-			return null;
-
-		return TileType.getTileTypeById(map[layer][getHeight() - row - 1][col]);
-	}
-
-	public int getWidth() {
-		return map[0][0].length;
-	}
-
-	public int getHeight() {
-		return map[0].length;
-	}
-
-	public int getLayers() {
-		return map.length;
-	}
-
-	public int getPixelWidth() {
-		return this.getWidth() * TileType.TILE_SIZE;
-	}
-
-	public int getPixelHeight() {
-		return this.getHeight() * TileType.TILE_SIZE;
-	}
-
 }

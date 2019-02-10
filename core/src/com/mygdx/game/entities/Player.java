@@ -16,6 +16,7 @@ import com.badlogic.gdx.physics.box2d.Fixture;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
 import com.mygdx.game.Constants;
+import com.mygdx.game.world.GameMap;
 
 public class Player {
 	private Body body;
@@ -76,21 +77,24 @@ public class Player {
 
 	public void setFixtureThis(Fixture fix) {
 		fix.setUserData(this);
+		fix.setFriction(5);
 	}
 
-	public void update(float delta) {
-
+	public void update(float delta, GameMap mapaRender) {
+		if(subir != 0) {
+			subirUmTile(mapaRender);
+		}
 
 		if (Gdx.input.isKeyPressed(Input.Keys.D)) {
 			sprite.setFlip(false, false);
-			body.applyForceToCenter(1500, 0, true);
+			body.applyForceToCenter(500, 0, true);
 			if (body.getLinearVelocity().x > 15) {
 				body.setLinearVelocity(15, body.getLinearVelocity().y);
 			}
 		}
 		if (Gdx.input.isKeyPressed(Input.Keys.A)) {
 			sprite.setFlip(true, false);
-			body.applyForceToCenter(-1500, 0, true);
+			body.applyForceToCenter(-500, 0, true);
 			if (body.getLinearVelocity().x < -15) {
 				body.setLinearVelocity(-15, body.getLinearVelocity().y);
 			}
@@ -100,16 +104,33 @@ public class Player {
 			body.setLinearVelocity(body.getLinearVelocity().x, 25);
 		}
 
-		// if(keycode == Input.Keys.SPACE) {
-		// body.setLinearVelocity(0f, 0f);
-		// body.setAngularVelocity(0f);
-		// torque = 0f;
-		// sprite.setPosition(0f,0f);
-		// body.setTransform(0f,0f,0f);
-		// }
 		stateTime += delta;
 		status = updateStatus();
 		updatePreviusPosition();
+	}
+	int subir = 0;
+
+	public void subir(Direcao direcao) {
+		subir = direcao.get();
+	}
+
+	private void subirUmTile(GameMap mapaRender) {
+		if(status != EntityStatus.WALK && status != EntityStatus.IDLE) {
+			subir = 0;
+			return;
+		}
+
+		Vector2 position = getPosition();
+		position.y += 1;
+		position.x += subir == 1 ? subir*2 : subir;
+
+		if (mapaRender.blockOnPosition(position) > 0 ) {
+			position.y += 1;
+			if (mapaRender.blockOnPosition(position) == 0) {
+				body.setTransform(body.getPosition().x, body.getPosition().y+1.1f, body.getAngle());
+			}
+		}
+		subir = 0;
 	}
 
 	private void updatePreviusPosition() {
@@ -127,7 +148,7 @@ public class Player {
 			return EntityStatus.FALL;
 		}
 
-		if (body.getLinearVelocity().x != 0) {
+		if (body.getLinearVelocity().x != 0 && (status == EntityStatus.IDLE || status == EntityStatus.WALK)) {
 			return EntityStatus.WALK;
 		}
 
@@ -151,7 +172,7 @@ public class Player {
 	}
 
 	public Vector2 getPosition() {
-		return body.getPosition();
+		return new Vector2(body.getPosition());
 	}
 
 	public void dispose() {

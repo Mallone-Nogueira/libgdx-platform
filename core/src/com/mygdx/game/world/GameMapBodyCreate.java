@@ -1,17 +1,18 @@
-package com.mygdx.game;
+package com.mygdx.game.world;
 
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
+import com.mygdx.game.Constants;
 
-public class BodyCreate {
+public class GameMapBodyCreate {
 
 	private PolygonShape shape;
 	private BodyDef def;
 	private World world;
 
-	public BodyCreate (World world) {
+	public GameMapBodyCreate (World world) {
 		this.world = world;
 		shape = new PolygonShape();
 		shape.setAsBox(Constants.PPM / 2f / Constants.PPM, Constants.PPM/ 2f / Constants.PPM);
